@@ -124,7 +124,7 @@ bot.command('start', async (ctx) => {
         };
       })
     );
-    console.log(accounts);
+    // console.log(accounts);
     ctx.session.accounts = accounts;
     const messageId = ctx.message.message_id;
     ctx.deleteMessage(messageId);

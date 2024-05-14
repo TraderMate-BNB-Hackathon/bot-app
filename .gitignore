@@ -2,3 +2,4 @@
 dist
 **.lock
 node_modules
+credential.json

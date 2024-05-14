@@ -20,4 +20,5 @@ export interface SessionData {
   tokenIn?: string;
   tokenOut?: string;
   amountOut?: any;
+  slippage?: number;
 }

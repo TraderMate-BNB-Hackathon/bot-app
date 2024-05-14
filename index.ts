@@ -296,7 +296,8 @@ bot.on(message('text'), async (ctx) => {
         ctx.session.tradeToken!,
         userInput,
         offer,
-        ctx.session.accounts[ctx.session.selectedWallet!]
+        ctx.session.accounts[ctx.session.selectedWallet!],
+        ctx.session.slippage ?? 0.5
       );
       ctx.reply(`✅ Swap successfull with hash ${swap}`);
     } catch (err) {

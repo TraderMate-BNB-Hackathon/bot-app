@@ -16,7 +16,8 @@ export const buy = async (
   address: string,
   amount: string,
   offer: Offer,
-  _account: Wallets
+  _account: Wallets,
+  slippage: number = 0.5
 ) => {
   // const tokenDetails = await useTokenInfo(address);
   // const tokenInContract = useTokenContract(address);
@@ -36,11 +37,12 @@ export const buy = async (
       2,
     ]),
   ]);
+
+  const amountOutAfterFee =
+    Number(amount) * Number(offer.amountOut) -
+    0.1 * Number(amount) * Number(offer.amountOut);
   const amountOutParsed = parseUnits(
-    (
-      Number(amount) * Number(offer.amountOut) -
-      0.1 * Number(amount) * Number(offer.amountOut)
-    ).toString(),
+    (amountOutAfterFee * ((100 - slippage) / 100)).toString(),
     tokenDetails?.decimals as any
   );
   // contract.findBestPath(amountInFormatted, tokenIn, tokenOut, maxSteps)

@@ -1,6 +1,6 @@
-import { formatEther } from "viem";
-import { Wallets } from "../types/common";
-import { client } from "./client";
+import { formatEther } from 'viem';
+import { Wallets } from '../types/common';
+import { client } from './client';
 
 export const fetchAccountBalances = (accounts: Wallets[]) => {
   return Promise.all(

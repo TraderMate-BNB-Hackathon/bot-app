@@ -1,12 +1,12 @@
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, http } from 'viem';
 
-import { fantom } from "viem/chains";
+import { opBNBTestnet } from 'viem/chains';
 
 export const client = createPublicClient({
-  chain: fantom,
+  chain: opBNBTestnet,
   transport: http(),
 });
 export const walletClient = createWalletClient({
-  chain: fantom,
+  chain: opBNBTestnet,
   transport: http(),
 });

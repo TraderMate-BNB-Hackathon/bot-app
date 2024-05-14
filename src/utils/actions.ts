@@ -1,15 +1,16 @@
-import { getAddress, parseUnits, toHex } from "viem";
-import { Offer, Wallets } from "../types/common";
-import { ROUTER, SWAP_FEE } from "./constants";
+import { getAddress, parseUnits, toHex } from 'viem';
+import { Offer, Wallets } from '../types/common';
+import { ROUTER, SWAP_FEE } from './constants';
 import {
   useContract,
   useSwapRouter,
   useTokenContract,
   useTokenInfo,
-} from "./getters";
-import { walletClient } from "./client";
-import { privateKeyToAccount } from "viem/accounts";
-import { abi as aggregatorABI } from "./abis/aggregator.json";
+} from './getters';
+import { walletClient } from './client';
+import { privateKeyToAccount } from 'viem/accounts';
+import { abi as aggregatorABI } from './abis/aggregator.json';
+import { decryptPrivateKey } from './encryptions';
 
 export const buy = async (
   address: string,
@@ -72,12 +73,16 @@ export const buy = async (
   //     value: amountInParsed,
   //   }
   // );
-  const account = privateKeyToAccount(_account.privateKey as any);
+  const decryptedKey = await decryptPrivateKey(
+    _account.address,
+    _account.privateKey
+  );
+  const account = privateKeyToAccount(decryptedKey as any);
   const swapTx = await walletClient.writeContract({
     account,
     address: ROUTER,
     abi: aggregatorABI,
-    functionName: "swap",
+    functionName: 'swap',
     args: [trade, _account.address, toHex(SWAP_FEE)],
     // args: [],
     value: amountInParsed,

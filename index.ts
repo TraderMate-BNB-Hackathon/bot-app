@@ -11,12 +11,16 @@ import { formatGwei } from 'viem';
 import { Offer, SessionData } from './src/types/common';
 import { client } from './src/utils/client';
 import { fetchAccountBalances } from './src/utils/accounts';
-import { telos } from 'viem/chains';
+// import { telos } from 'viem/chains';
 import { useTokenDetails } from './src/utils/getters';
-import { AxiosResponse } from 'axios';
+// import { AxiosResponse } from 'axios';
 import { buy } from './src/utils/actions';
+import { encryptPrivateKey } from './src/utils/encryptions';
+// import { testEncryption } from './src/utils/encryptions';
 dotenv.config();
 const API_TOKEN = process.env.API_TOKEN;
+
+// testEncryption();
 
 interface BotContext extends Context {
   session: SessionData;
@@ -106,12 +110,16 @@ bot.command('start', async (ctx) => {
     // ctx.session.accounts = [accounts.address]
 
     const accounts = await Promise.all(
-      [1, 2].map(() => {
+      [1, 2].map(async () => {
         const privateKey = generatePrivateKey();
         const account = privateKeyToAccount(privateKey);
+        const encryptedKey = await encryptPrivateKey(
+          account.address,
+          privateKey
+        );
         // const encryptionKey=
         return {
-          privateKey,
+          privateKey: encryptedKey,
           address: account.address,
         };
       })
@@ -242,7 +250,9 @@ bot.action(/delete-wallet-\d+/, (ctx) => {
 });
 
 bot.action('wallets', async (ctx) => {
+  console.log('here');
   const accountWithBalances = await fetchAccountBalances(ctx.session.accounts);
+  console.log('accts', accountWithBalances);
   ctx.replyWithMarkdown(
     `⛽ *Wallets*  \n\n` +
       `${accountWithBalances.map(
@@ -304,9 +314,10 @@ bot.on(message('text'), async (ctx) => {
   ) {
     try {
       const account = privateKeyToAccount(userInput as any);
+      const encryptedKey = await encryptPrivateKey(account.address, userInput);
       ctx.session.accounts.push({
         address: account.address,
-        privateKey: userInput,
+        privateKey: encryptedKey,
       });
       ctx.reply(`✅ Account imported successfully`);
     } catch {

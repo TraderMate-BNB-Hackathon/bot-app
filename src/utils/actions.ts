@@ -1,7 +1,19 @@
-import { erc20Abi, getAddress, parseUnits, toHex } from 'viem';
+import {
+  erc20Abi,
+  formatUnits,
+  fromHex,
+  getAddress,
+  parseUnits,
+  toHex,
+} from 'viem';
 import { Offer, Wallets } from '../types/common';
-import { ROUTER, SWAP_FEE } from './constants';
-import { useSwapRouter, useTokenContract, useTokenInfo } from './getters';
+import { ROUTER, SWAP_FEE, WNATIVE } from './constants';
+import {
+  useSellTokenDetails,
+  useSwapRouter,
+  useTokenContract,
+  useTokenInfo,
+} from './getters';
 import { walletClient } from './client';
 import { privateKeyToAccount } from 'viem/accounts';
 import { abi as aggregatorABI } from './abis/aggregator.json';
@@ -12,7 +24,7 @@ export const buy = async (
   amount: string,
   offer: Offer,
   _account: Wallets,
-  slippage: number = 0.5
+  slippage: number = 0
 ) => {
   const routerContract = useSwapRouter();
 
@@ -29,18 +41,29 @@ export const buy = async (
 
   const amountOutAfterFee =
     Number(amount) * Number(offer.amountOut) -
-    0.1 * Number(amount) * Number(offer.amountOut);
+    0.5 * Number(amount) * Number(offer.amountOut);
   const amountOutParsed = parseUnits(
-    (amountOutAfterFee * ((100 - slippage) / 100)).toString(),
-    tokenDetails?.decimals as any
+    amountOutAfterFee.toString(),
+    tokenDetails?.decimals! as any
   );
+  console.log(amountInParsed);
   const trade = [
     toHex(amountInParsed),
     toHex(amountOutParsed),
     (bestOffer as any).path,
     (bestOffer as any).adapters,
   ];
-  console.log(trade);
+  console.log(
+    'trade log',
+    amountOutParsed,
+    amountOutParsed * BigInt(2),
+    amountOutAfterFee,
+    offer.amountOut,
+    1 / offer.amountOut,
+    bestOffer,
+    'submitted',
+    trade
+  );
   const decryptedKey = await decryptPrivateKey(
     _account.address,
     _account.privateKey
@@ -63,7 +86,7 @@ export const sell = async (
   amount: string,
   offer: Offer,
   _account: Wallets,
-  slippage: number = 0.5
+  slippage: number = 0
 ) => {
   const tokenInContract = useTokenContract(address);
   const allowance = await tokenInContract?.read.allowance([
@@ -72,22 +95,29 @@ export const sell = async (
   ]);
   const routerContract = useSwapRouter();
 
-  const amountInParsed = parseUnits(amount, 18);
+  const amountInParsed = Number(amount);
+  console.log('amountIn', amountInParsed, amount, allowance, offer.amountOut);
   const [tokenDetails, bestOffer] = await Promise.all([
-    useTokenInfo(address),
+    useSellTokenDetails(address),
     routerContract?.read.findBestPath([
       amountInParsed,
-      offer.tokenIn,
       offer.tokenOut,
-      2,
+      offer.tokenIn,
+      3,
     ]),
   ]);
 
+  const formattedAmount = formatUnits(
+    BigInt(amount),
+    Number(tokenDetails?.decimals!)
+  );
+
   const amountOutAfterFee =
-    Number(amount) * Number(offer.amountOut) -
-    0.1 * Number(amount) * Number(offer.amountOut);
+    Number(formattedAmount) * Number(1 / offer.amountOut) -
+    0.1 * Number(formattedAmount) * Number(1 / offer.amountOut);
+  console.log('amount after slippage', amountOutAfterFee);
   const amountOutParsed = parseUnits(
-    (amountOutAfterFee * ((100 - slippage) / 100)).toString(),
+    amountOutAfterFee.toString(),
     tokenDetails?.decimals as any
   );
   const decryptedKey = await decryptPrivateKey(
@@ -96,25 +126,30 @@ export const sell = async (
   );
   const account = privateKeyToAccount(decryptedKey as any);
 
-  if ((allowance as any).lt(amountInParsed)) {
+  if (Number(allowance as any) < amountInParsed) {
     const approvalTx = await walletClient.writeContract({
       account,
       address: address as any,
       abi: erc20Abi,
       functionName: 'approve',
-      args: [ROUTER, amountInParsed - (allowance as bigint)],
+      args: [ROUTER, amountInParsed],
     });
 
     console.log('approve', approvalTx);
   }
   //     const weth = WETH[chainId ?? 84531];
   const trade = [
-    toHex(amountInParsed),
-    toHex(amountOutParsed),
+    amountInParsed,
+    amountOutParsed,
     (bestOffer as any).path,
     (bestOffer as any).adapters,
   ];
-  console.log(trade);
+  console.log(
+    'trade log',
+    trade,
+    fromHex('0x313030303030303030303030', 'number'),
+    amountInParsed
+  );
   const swapTx = await walletClient.writeContract({
     account,
     address: ROUTER,
@@ -122,7 +157,7 @@ export const sell = async (
     functionName: 'swap',
     args: [trade, _account.address, toHex(SWAP_FEE)],
     // args: [],
-    value: amountInParsed,
+    value: parseUnits('0', 18),
   });
   return swapTx;
   // const awaitedTx = await swapTx.wait();

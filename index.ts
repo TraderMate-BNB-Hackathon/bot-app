@@ -12,10 +12,16 @@ import { Offer, SessionData } from './src/types/common';
 import { client } from './src/utils/client';
 import { fetchAccountBalances } from './src/utils/accounts';
 // import { telos } from 'viem/chains';
-import { useTokenDetails } from './src/utils/getters';
+import {
+  useRawTokenBalance,
+  useSellTokenDetails,
+  useTokenBalance,
+  useTokenDetails,
+} from './src/utils/getters';
 // import { AxiosResponse } from 'axios';
-import { buy } from './src/utils/actions';
+import { buy, sell } from './src/utils/actions';
 import { encryptPrivateKey } from './src/utils/encryptions';
+import { WNATIVE } from './src/utils/constants';
 // import { testEncryption } from './src/utils/encryptions';
 dotenv.config();
 const API_TOKEN = process.env.API_TOKEN;
@@ -222,11 +228,25 @@ bot.action('buy', (ctx) => {
     Markup.forceReply()
   );
 });
+
+bot.action('sell', async (ctx) => {
+  ctx.reply('Select wallet to sell from', {
+    reply_markup: {
+      inline_keyboard: [
+        ctx.session.accounts?.map((item, id) => ({
+          text: `wallet ${id}`,
+          callback_data: `sell-from-${id}`,
+        })),
+      ],
+    },
+  });
+});
+
 bot.action('delete-wallet', (ctx) => {
   ctx.reply('Select wallet to delete', {
     reply_markup: {
       inline_keyboard: [
-        ctx.session.accounts.map((item, id) => ({
+        ctx.session.accounts?.map((item, id) => ({
           text: `wallet ${id}`,
           callback_data: `delete-wallet-${id}`,
         })),
@@ -268,7 +288,118 @@ bot.action(/buy-with-\d+/, (ctx) => {
   const sections = action.split('-');
   const index = Number(sections[sections.length - 1]);
   ctx.session.selectedWallet = index;
-  ctx.reply('Enter amount to buy in FTM:', Markup.forceReply());
+  ctx.reply('Enter amount to buy in BNB:', Markup.forceReply());
+});
+
+bot.action(/sell-from-\d+/, async (ctx) => {
+  const action = ctx.match[0]; // Extract the matched part of the action
+  const sections = action.split('-');
+  const index = Number(sections[sections.length - 1]);
+  ctx.session.selectedWallet = index;
+  // ctx.reply('Enter percentage to sell', Markup.forceReply());
+  if (
+    ctx.session.portfolio &&
+    ctx.session.portfolio[ctx.session.accounts[index].address]
+  ) {
+    const tokens = await Promise.all(
+      ctx.session.portfolio[ctx.session.accounts[index].address].map((item) =>
+        useTokenDetails(item.address)
+      )
+    );
+    console.log(
+      'Test',
+      ctx.session.portfolio[ctx.session.accounts[index].address][0].address
+    );
+    ctx.reply('Select token to sell', {
+      reply_markup: {
+        inline_keyboard: [
+          tokens?.map((item, id) => ({
+            text: `${item?.name}`,
+            callback_data: `sell-${item?.address}`,
+          })),
+        ],
+      },
+    });
+  } else {
+    ctx.reply('No token to sell');
+  }
+});
+
+bot.action(/sell-0x[a-zA-Z0-9]+/, async (ctx) => {
+  const action = ctx.match[0]; // Extract the matched part of the action
+  console.log(action, ctx.match);
+  const sections = action.split('-');
+  const address = sections[sections.length - 1];
+  try {
+    console.log(action, address);
+    const response: any = await useSellTokenDetails(address);
+    const balance: any = await useTokenBalance(
+      address,
+      ctx.session.accounts[ctx.session.selectedWallet!].address
+    );
+    ctx.session.tradeToken = address;
+    console.log('here', response);
+    const offer = response.price as Offer;
+    ctx.session.adapter = offer?.adapter;
+    ctx.session.tokenIn = offer?.tokenIn;
+    ctx.session.tokenOut = offer?.tokenOut;
+    ctx.session.amountOut = Number(offer?.amountOut);
+    ctx.replyWithMarkdown(
+      `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
+        response.symbol
+      }\n*Total Sypply:*${Number(offer?.amountOut)} \n*Total Sypply:* ${
+        response.totalSupply
+      }\n*Decimals:*${
+        response.decimals
+      }\n*Balance:*${balance}\n\n\n\n Select percent to sell`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [25, 50, 75, 100].map((item, id) => ({
+              text: `${item}%`,
+              callback_data: `sell-%-${item}`,
+            })),
+          ],
+        },
+      }
+    );
+  } catch (err: any) {
+    console.log(err);
+  }
+});
+
+bot.action(/sell-%-\d+/, async (ctx) => {
+  const action = ctx.match[0]; // Extract the matched part of the action
+  console.log(ctx.match);
+  const sections = action.split('-');
+  const percentage = Number(sections[sections.length - 1]);
+  // ctx.session.selectedWallet = index;
+  // ctx.reply('Enter amount to buy in BNB:', Markup.forceReply());
+  try {
+    const balance: any = await useRawTokenBalance(
+      ctx.session.tokenOut!,
+      ctx.session.accounts[ctx.session.selectedWallet!].address!
+    );
+    const offer: Offer = {
+      adapter: ctx.session.adapter!,
+      tokenIn: ctx.session.tokenIn!,
+      tokenOut: ctx.session.tokenOut!,
+      amountOut: ctx.session.amountOut,
+    };
+    console.log((Number(balance) * percentage) / 100, balance, offer);
+    const swap = await sell(
+      ctx.session.tradeToken!,
+      ((Number(balance) * percentage) / 100).toString(),
+      offer,
+      ctx.session.accounts[ctx.session.selectedWallet!],
+      ctx.session.slippage ?? 0
+    );
+
+    ctx.reply(`✅ Swap successfull with hash ${swap}`);
+  } catch (err: any) {
+    console.log(err);
+    ctx.reply(`🚫 Swap failed: ${err?.details}`);
+  }
 });
 
 bot.action('import', (ctx) => {
@@ -283,7 +414,7 @@ bot.on(message('text'), async (ctx) => {
     ctx.message.reply_to_message &&
     // ctx.message.reply_to_message.text &&
     //@ts-ignore
-    ctx.message.reply_to_message.text === 'Enter amount to buy in FTM:'
+    ctx.message.reply_to_message.text === 'Enter amount to buy in BNB:'
   ) {
     try {
       const offer: Offer = {
@@ -297,12 +428,36 @@ bot.on(message('text'), async (ctx) => {
         userInput,
         offer,
         ctx.session.accounts[ctx.session.selectedWallet!],
-        ctx.session.slippage ?? 0.5
+        ctx.session.slippage ?? 10
       );
+      if (
+        ctx.session?.portfolio &&
+        ctx.session?.portfolio[
+          ctx.session.accounts[ctx.session.selectedWallet!].address
+        ]
+      ) {
+        ctx.session.portfolio[
+          ctx.session.accounts[ctx.session.selectedWallet!].address
+        ].push({
+          address: ctx.session.tradeToken as string,
+          entry: ctx.session.amountOut,
+        });
+      } else {
+        //@ts-ignore
+        ctx.session.portfolio = {};
+        ctx.session.portfolio[
+          ctx.session.accounts[ctx.session.selectedWallet!].address
+        ] = [
+          {
+            address: ctx.session.tradeToken as string,
+            entry: ctx.session.amountOut,
+          },
+        ];
+      }
       ctx.reply(`✅ Swap successfull with hash ${swap}`);
-    } catch (err) {
+    } catch (err: any) {
       console.log(err);
-      ctx.reply('🚫 Swap failed');
+      ctx.reply(`🚫 Swap failed: ${err?.details}`);
     }
   }
 
@@ -332,23 +487,24 @@ bot.on(message('text'), async (ctx) => {
     try {
       const response: any = await useTokenDetails(userInput);
       ctx.session.tradeToken = userInput;
+      console.log('here', response);
       const offer = response.price as Offer;
-      ctx.session.adapter = offer.adapter;
-      ctx.session.tokenIn = offer.tokenIn;
-      ctx.session.tokenOut = offer.tokenOut;
-      ctx.session.amountOut = Number(offer.amountOut);
+      ctx.session.adapter = offer?.adapter;
+      ctx.session.tokenIn = offer?.tokenIn;
+      ctx.session.tokenOut = offer?.tokenOut;
+      ctx.session.amountOut = Number(offer?.amountOut);
       ctx.replyWithMarkdown(
         `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
           response.symbol
         }\n*Total Sypply:* ${response.totalSupply}\n*Decimals:*${
           response.decimals
         }\n*Token Health:*${response.health}\n*Price:* ${
-          1 / Number((response.price as any).amountOut)
-        } FTM`,
+          1 / Number((response.price as any)?.amountOut)
+        } BNB`,
         {
           reply_markup: {
             inline_keyboard: [
-              ctx.session.accounts.map((item, id) => ({
+              ctx.session.accounts?.map((item, id) => ({
                 text: `wallet ${id}`,
                 callback_data: `buy-with-${id}`,
               })),
@@ -358,8 +514,52 @@ bot.on(message('text'), async (ctx) => {
       );
       console.log(response);
     } catch (error) {
+      console.log(error);
       ctx.reply('🚫 Error Fetching Address');
     }
+  } else if (
+    ctx.message.reply_to_message &&
+    (ctx.message.reply_to_message as any).text ===
+      'Enter your the token address you wish to sell:'
+  ) {
+    try {
+      const response: any = await useTokenDetails(userInput, WNATIVE);
+      ctx.session.tradeToken = userInput;
+      console.log('here', response);
+      const offer = response.price as Offer;
+      ctx.session.adapter = offer?.adapter;
+      ctx.session.tokenIn = offer?.tokenIn;
+      ctx.session.tokenOut = offer?.tokenOut;
+      ctx.session.amountOut = Number(offer?.amountOut);
+      ctx.replyWithMarkdown(
+        `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
+          response.symbol
+        }\n*Total Sypply:* ${response.totalSupply}\n*Decimals:*${
+          response.decimals
+        }\n*Token Health:*${response.health}\n*Price:* ${Number(
+          (response.price as any)?.amountOut
+        )} BNB`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              ctx.session.accounts?.map((item, id) => ({
+                text: `wallet ${id}`,
+                callback_data: `sell-from-${id}`,
+              })),
+            ],
+          },
+        }
+      );
+      console.log(response);
+    } catch (error) {
+      console.log(error);
+      ctx.reply('🚫 Error Fetching Address');
+    }
+  } else if (
+    ctx.message.reply_to_message &&
+    (ctx.message.reply_to_message as any).text ===
+      'Enter your the token address you wish to sell:'
+  ) {
   }
 });
 

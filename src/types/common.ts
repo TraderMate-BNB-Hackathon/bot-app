@@ -10,6 +10,11 @@ export interface Offer {
   amountOut: any;
 }
 
+export interface portfolioItem {
+  address: string;
+  entry: number;
+}
+
 export interface SessionData {
   selectedOption: any;
   accounts: Wallets[];
@@ -21,4 +26,5 @@ export interface SessionData {
   tokenOut?: string;
   amountOut?: any;
   slippage?: number;
+  portfolio?: Record<string, portfolioItem[]>;
 }

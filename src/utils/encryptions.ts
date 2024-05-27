@@ -3,6 +3,9 @@ import {
   ClientSecretCredential,
   DefaultAzureCredential,
 } from '@azure/identity';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Your Azure Key Vault URL
 const vaultUrl = 'https://bot-trade.vault.azure.net/';

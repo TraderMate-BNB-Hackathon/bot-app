@@ -86,7 +86,7 @@ export const sell = async (
   amount: string,
   offer: Offer,
   _account: Wallets,
-  slippage: number = 0
+  slippage: number
 ) => {
   const tokenInContract = useTokenContract(address);
   const allowance = await tokenInContract?.read.allowance([
@@ -96,30 +96,23 @@ export const sell = async (
   const routerContract = useSwapRouter();
 
   const amountInParsed = Number(amount);
-  console.log('amountIn', amountInParsed, amount, allowance, offer.amountOut);
   const [tokenDetails, bestOffer] = await Promise.all([
     useSellTokenDetails(address),
     routerContract?.read.findBestPath([
       amountInParsed,
       offer.tokenOut,
       offer.tokenIn,
-      3,
+      2,
     ]),
   ]);
 
-  const formattedAmount = formatUnits(
-    BigInt(amount),
-    Number(tokenDetails?.decimals!)
-  );
-
+  const formattedAmount =
+    Number(amount) / 10 ** ((tokenDetails?.decimals as any) ?? 0);
   const amountOutAfterFee =
     Number(formattedAmount) * Number(1 / offer.amountOut) -
-    0.1 * Number(formattedAmount) * Number(1 / offer.amountOut);
-  console.log('amount after slippage', amountOutAfterFee);
-  const amountOutParsed = parseUnits(
-    amountOutAfterFee.toString(),
-    tokenDetails?.decimals as any
-  );
+    0.2 * Number(formattedAmount) * Number(1 / offer.amountOut);
+  const amountOutParsed =
+    amountOutAfterFee * 10 ** ((tokenDetails?.decimals as any) ?? 0);
   const decryptedKey = await decryptPrivateKey(
     _account.address,
     _account.privateKey
@@ -139,16 +132,17 @@ export const sell = async (
   }
   //     const weth = WETH[chainId ?? 84531];
   const trade = [
-    amountInParsed,
-    amountOutParsed,
+    parseInt(amountInParsed.toString()),
+    parseInt(amountOutParsed.toString()),
     (bestOffer as any).path,
     (bestOffer as any).adapters,
   ];
+
   console.log(
-    'trade log',
-    trade,
-    fromHex('0x313030303030303030303030', 'number'),
-    amountInParsed
+    parseInt(amountInParsed.toString()),
+    parseInt(amountOutParsed.toString()),
+    amountInParsed,
+    amountOutParsed
   );
   const swapTx = await walletClient.writeContract({
     account,

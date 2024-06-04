@@ -26,5 +26,5 @@ export interface SessionData {
   tokenOut?: string;
   amountOut?: any;
   slippage?: number;
-  portfolio?: Record<string, portfolioItem[]>;
+  portfolio?: Record<string, Record<string, number[]>>;
 }

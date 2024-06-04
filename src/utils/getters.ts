@@ -28,9 +28,10 @@ export const useContract = (
   return getContract({ address: address, abi: ABI, client: client });
 };
 
-export const usePrice = async (tokenOut: string, tokenIn: string = WNATIVE) => {
+export const usePrice = async (tokenOut: string) => {
   const routerContract = useContract(ROUTER, aggregatorABI);
-  const price = await routerContract?.read.query([tokenIn, tokenOut, 1]);
+  const price = await routerContract?.read.query([WNATIVE, tokenOut, 1]);
+  console.log('price', price);
   return price;
 };
 
@@ -94,7 +95,7 @@ export const useTokenDetails = async (address: string, to?: string) => {
     tokenContract.read.decimals([]),
     tokenContract.read.totalSupply([]),
     // {},
-    to ? usePrice(to, address) : usePrice(address),
+    usePrice(address),
   ]);
 
   return {

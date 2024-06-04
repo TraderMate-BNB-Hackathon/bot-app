@@ -22,6 +22,8 @@ import {
 import { buy, sell } from './src/utils/actions';
 import { encryptPrivateKey } from './src/utils/encryptions';
 import { WNATIVE } from './src/utils/constants';
+// import { delay } from 'lodash';
+import { sleep } from './src/utils';
 // import { testEncryption } from './src/utils/encryptions';
 dotenv.config();
 const API_TOKEN = process.env.API_TOKEN;
@@ -167,15 +169,6 @@ bot.command('start', async (ctx) => {
   }
 });
 
-bot.command('test', (ctx) => {
-  ctx.replyWithMarkdown(`
-    *Hello!* Welcome to my bot.
-
-    Here's an example of *bold* and _italic_ text.
-    [Visit my website](https://example.com).
-  `);
-});
-
 bot.action(['1', '2'], (ctx) => {
   // Store the selected option in the context
   ctx.session ??= { selectedOption: '', accounts: [] };
@@ -205,8 +198,6 @@ bot.action(['A', 'B'], (ctx) => {
   const subOption = ctx.match[0];
 
   // Use the selected option and suboption as needed
-  // ctx.reply(`You selected Option ${selectedOption} and Suboption ${subOption}. Performing evaluation...`);
-  // ctx.telegram
 
   ctx.replyWithMarkdownV2(
     `You selected Option ${selectedOption} and Suboption ${subOption}. Performing evaluation...`
@@ -216,21 +207,20 @@ bot.action(['A', 'B'], (ctx) => {
   // For example, you can save them to a database, perform calculations, etc.
 });
 
-// bot.start((ctx) => {
-//     ctx.reply('Main Menu', mainMenuKeyboard);
-// });
 bot.command('new', (ctx) => {
   ctx.reply('Main Menu', { reply_markup: mainMenuKeyboard });
 });
-bot.action('buy', (ctx) => {
-  ctx.reply(
+bot.action('buy', async (ctx) => {
+  const message = await ctx.reply(
     'Enter your the token address you wish to buy:',
     Markup.forceReply()
   );
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 
 bot.action('sell', async (ctx) => {
-  ctx.reply('Select wallet to sell from', {
+  const message = await ctx.reply('Select wallet to sell from', {
     reply_markup: {
       inline_keyboard: [
         ctx.session.accounts?.map((item, id) => ({
@@ -240,10 +230,12 @@ bot.action('sell', async (ctx) => {
       ],
     },
   });
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 
-bot.action('delete-wallet', (ctx) => {
-  ctx.reply('Select wallet to delete', {
+bot.action('delete-wallet', async (ctx) => {
+  const message = await ctx.reply('Select wallet to delete', {
     reply_markup: {
       inline_keyboard: [
         ctx.session.accounts?.map((item, id) => ({
@@ -253,12 +245,15 @@ bot.action('delete-wallet', (ctx) => {
       ],
     },
   });
+
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 bot.action('submenu', (ctx) => {
   ctx.reply('Submenu', submenuKeyboard);
 });
 
-bot.action(/delete-wallet-\d+/, (ctx) => {
+bot.action(/delete-wallet-\d+/, async (ctx) => {
   const action = ctx.match[0]; // Extract the matched part of the action
   const sections = action.split('-');
   const index = Number(sections[sections.length - 1]);
@@ -266,14 +261,16 @@ bot.action(/delete-wallet-\d+/, (ctx) => {
 
   // ctx.session.accounts = newAccounts
 
-  ctx.reply(`Wallet successfully deleted`);
+  const message = await ctx.reply(`Wallet successfully deleted`);
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 
 bot.action('wallets', async (ctx) => {
   console.log('here');
   const accountWithBalances = await fetchAccountBalances(ctx.session.accounts);
   console.log('accts', accountWithBalances);
-  ctx.replyWithMarkdown(
+  const message = await ctx.replyWithMarkdown(
     `⛽ *Wallets*  \n\n` +
       `${accountWithBalances.map(
         (account, index) =>
@@ -281,14 +278,22 @@ bot.action('wallets', async (ctx) => {
       )}`.replace(',', ''),
     { reply_markup: walletsMenuKeyboard }
   );
+
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 
-bot.action(/buy-with-\d+/, (ctx) => {
+bot.action(/buy-with-\d+/, async (ctx) => {
   const action = ctx.match[0]; // Extract the matched part of the action
   const sections = action.split('-');
   const index = Number(sections[sections.length - 1]);
   ctx.session.selectedWallet = index;
-  ctx.reply('Enter amount to buy in BNB:', Markup.forceReply());
+  const message = await ctx.reply(
+    'Enter amount to buy in BNB:',
+    Markup.forceReply()
+  );
+  await sleep(10000);
+  ctx.deleteMessage(message.message_id);
 });
 
 bot.action(/sell-from-\d+/, async (ctx) => {
@@ -302,15 +307,17 @@ bot.action(/sell-from-\d+/, async (ctx) => {
     ctx.session.portfolio[ctx.session.accounts[index].address]
   ) {
     const tokens = await Promise.all(
-      ctx.session.portfolio[ctx.session.accounts[index].address].map((item) =>
-        useTokenDetails(item.address)
-      )
+      [
+        ...Object.keys(
+          ctx.session.portfolio[ctx.session.accounts[index].address]
+        ),
+      ].map((item) => useTokenDetails(item))
     );
-    console.log(
-      'Test',
-      ctx.session.portfolio[ctx.session.accounts[index].address][0].address
-    );
-    ctx.reply('Select token to sell', {
+    // console.log(
+    //   'Test',
+    //   ctx.session.portfolio[ctx.session.accounts[index].address][0].address
+    // );
+    const message = await ctx.reply('Select token to sell', {
       reply_markup: {
         inline_keyboard: [
           tokens?.map((item, id) => ({
@@ -320,8 +327,12 @@ bot.action(/sell-from-\d+/, async (ctx) => {
         ],
       },
     });
+    await sleep(10000);
+    ctx.deleteMessage(message.message_id);
   } else {
-    ctx.reply('No token to sell');
+    const message = await ctx.reply('No token to sell');
+    await sleep(10000);
+    ctx.deleteMessage(message.message_id);
   }
 });
 
@@ -344,7 +355,7 @@ bot.action(/sell-0x[a-zA-Z0-9]+/, async (ctx) => {
     ctx.session.tokenIn = offer?.tokenIn;
     ctx.session.tokenOut = offer?.tokenOut;
     ctx.session.amountOut = Number(offer?.amountOut);
-    ctx.replyWithMarkdown(
+    const message = await ctx.replyWithMarkdown(
       `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
         response.symbol
       }\n*Total Sypply:*${Number(offer?.amountOut)} \n*Total Sypply:* ${
@@ -363,6 +374,8 @@ bot.action(/sell-0x[a-zA-Z0-9]+/, async (ctx) => {
         },
       }
     );
+    await sleep(10000);
+    ctx.deleteMessage(message.message_id);
   } catch (err: any) {
     console.log(err);
   }
@@ -389,16 +402,20 @@ bot.action(/sell-%-\d+/, async (ctx) => {
     console.log((Number(balance) * percentage) / 100, balance, offer);
     const swap = await sell(
       ctx.session.tradeToken!,
-      ((Number(balance) * percentage) / 100).toString(),
+      Math.floor((Number(balance) * percentage) / 100).toString(),
       offer,
       ctx.session.accounts[ctx.session.selectedWallet!],
-      ctx.session.slippage ?? 0
+      ctx.session.slippage ?? 10
     );
 
-    ctx.reply(`✅ Swap successfull with hash ${swap}`);
+    const message = await ctx.reply(`✅ Swap successfull with hash ${swap}`);
+    await sleep(10000);
+    ctx.deleteMessage(message.message_id);
   } catch (err: any) {
     console.log(err);
-    ctx.reply(`🚫 Swap failed: ${err?.details}`);
+    const message = await ctx.reply(`🚫 Swap failed: ${err?.details}`);
+    await sleep(10000);
+    ctx.deleteMessage(message.message_id);
   }
 });
 
@@ -436,28 +453,47 @@ bot.on(message('text'), async (ctx) => {
           ctx.session.accounts[ctx.session.selectedWallet!].address
         ]
       ) {
-        ctx.session.portfolio[
-          ctx.session.accounts[ctx.session.selectedWallet!].address
-        ].push({
-          address: ctx.session.tradeToken as string,
-          entry: ctx.session.amountOut,
-        });
+        if (
+          ctx.session.portfolio[
+            ctx.session.accounts[ctx.session.selectedWallet!].address
+          ][ctx.session.tradeToken as string]
+        ) {
+          ctx.session.portfolio[
+            ctx.session.accounts[ctx.session.selectedWallet!].address
+          ][ctx.session.tradeToken as string].push(ctx.session.amountOut);
+        } else {
+          ctx.session.portfolio[
+            ctx.session.accounts[ctx.session.selectedWallet!].address
+          ][ctx.session.tradeToken as string] = [ctx.session.amountOut];
+        }
+
+        // .push({
+        //   address: ctx.session.tradeToken as string,
+        //   entry: ctx.session.amountOut,
+        // });
       } else {
         //@ts-ignore
         ctx.session.portfolio = {};
         ctx.session.portfolio[
           ctx.session.accounts[ctx.session.selectedWallet!].address
-        ] = [
-          {
-            address: ctx.session.tradeToken as string,
-            entry: ctx.session.amountOut,
-          },
-        ];
+        ] = { [ctx.session.tradeToken as string]: [ctx.session.amountOut] };
+
+        //   {
+        //     address: ctx.session.tradeToken as string,
+        //     entry: ctx.session.amountOut,
+        //   },
+        // ;
       }
-      ctx.reply(`✅ Swap successfull with hash ${swap}`);
+      const message = await ctx.reply(`✅ Swap successfull with hash ${swap}`);
+      await sleep(10000);
+      await ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     } catch (err: any) {
       console.log(err);
-      ctx.reply(`🚫 Swap failed: ${err?.details}`);
+      const message = await ctx.reply(`🚫 Swap failed: ${err?.details}`);
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     }
   }
 
@@ -475,9 +511,14 @@ bot.on(message('text'), async (ctx) => {
         address: account.address,
         privateKey: encryptedKey,
       });
-      ctx.reply(`✅ Account imported successfully`);
+      const message = await ctx.reply(`✅ Account imported successfully`);
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
     } catch {
-      ctx.reply(`🚫 Invalid Private Key`);
+      const message = await ctx.reply(`🚫 Invalid Private Key`);
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     }
   } else if (
     ctx.message.reply_to_message &&
@@ -493,7 +534,7 @@ bot.on(message('text'), async (ctx) => {
       ctx.session.tokenIn = offer?.tokenIn;
       ctx.session.tokenOut = offer?.tokenOut;
       ctx.session.amountOut = Number(offer?.amountOut);
-      ctx.replyWithMarkdown(
+      const message = await ctx.replyWithMarkdown(
         `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
           response.symbol
         }\n*Total Sypply:* ${response.totalSupply}\n*Decimals:*${
@@ -513,9 +554,15 @@ bot.on(message('text'), async (ctx) => {
         }
       );
       console.log(response);
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     } catch (error) {
       console.log(error);
-      ctx.reply('🚫 Error Fetching Address');
+      const message = await ctx.reply('🚫 Error Fetching Address');
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     }
   } else if (
     ctx.message.reply_to_message &&
@@ -531,7 +578,7 @@ bot.on(message('text'), async (ctx) => {
       ctx.session.tokenIn = offer?.tokenIn;
       ctx.session.tokenOut = offer?.tokenOut;
       ctx.session.amountOut = Number(offer?.amountOut);
-      ctx.replyWithMarkdown(
+      const message = await ctx.replyWithMarkdown(
         `*Token Details* \n\n*Name:* ${response.name}\n*Symbol:* ${
           response.symbol
         }\n*Total Sypply:* ${response.totalSupply}\n*Decimals:*${
@@ -551,15 +598,16 @@ bot.on(message('text'), async (ctx) => {
         }
       );
       console.log(response);
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     } catch (error) {
       console.log(error);
-      ctx.reply('🚫 Error Fetching Address');
+      const message = await ctx.reply('🚫 Error Fetching Address');
+      await sleep(10000);
+      ctx.deleteMessage(message.message_id);
+      await ctx.deleteMessage(ctx.message.message_id);
     }
-  } else if (
-    ctx.message.reply_to_message &&
-    (ctx.message.reply_to_message as any).text ===
-      'Enter your the token address you wish to sell:'
-  ) {
   }
 });
 

@@ -125,7 +125,7 @@ export const sell = async (
       address: address as any,
       abi: erc20Abi,
       functionName: 'approve',
-      args: [ROUTER, amountInParsed],
+      args: [ROUTER, BigInt(parseInt(amountInParsed.toString()))],
     });
 
     console.log('approve', approvalTx);

@@ -2,7 +2,7 @@ import { Context, Markup, Telegraf, session } from 'telegraf';
 import dotenv from 'dotenv';
 // import { Account } from "viem";
 import admin from 'firebase-admin';
-import serviceAccount from './credential.json';
+// import serviceAccount from './credential.json';
 import { message } from 'telegraf/filters';
 //@ts-ignore
 import firebaseSession from 'telegraf-session-firebase';
@@ -35,8 +35,22 @@ interface BotContext extends Context {
 }
 const bot = new Telegraf<BotContext>(API_TOKEN ?? '');
 
+const ServiceAccount = {
+  type: process.env.TYPE,
+  projectId: process.env.PROJECT_ID,
+  private_key_id: process.env.PRIVATE_KEY_ID,
+  clientEmail: process.env.CLIENT_EMAIL,
+  privateKey: process.env.PRIVATE_KEY,
+  client_id: process.env.CLIENT_ID,
+  auth_uri: process.env.AUTH_URI,
+  token_uri: process.env.TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_CERT_URL,
+  client_x509_cert_url: process.env.AUTH_PROVIDER_CERT_URL,
+  universe_domain: process.env.UNIVERSE_DOMAIN,
+};
+
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount as any),
+  credential: admin.credential.cert(ServiceAccount),
   databaseURL: 'https://tg-bot-1de62-default-rtdb.firebaseio.com',
 });
 const database = admin.database();
